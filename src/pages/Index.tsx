@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,12 +6,13 @@ import { useToast } from '@/hooks/use-toast';
 import { Server, Users, Activity, AlertCircle, CheckCircle } from 'lucide-react';
 import { UserManagement } from '@/components/UserManagement';
 import { ServerLogs } from '@/components/ServerLogs';
+import { AdvancedSettings } from '@/components/AdvancedSettings';
 
 const Index = () => {
   const [serverStatus, setServerStatus] = useState<'running' | 'stopped' | 'loading'>('loading');
   const [activeUsers, setActiveUsers] = useState(0);
   const [totalUsers, setTotalUsers] = useState(0);
-  const [currentView, setCurrentView] = useState<'dashboard' | 'users' | 'logs'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'users' | 'logs' | 'advanced'>('dashboard');
   const { toast } = useToast();
 
   // Mock API calls - replace with actual backend calls
@@ -187,6 +187,12 @@ const Index = () => {
               >
                 Logs
               </Button>
+              <Button 
+                variant={currentView === 'advanced' ? 'default' : 'outline'}
+                onClick={() => setCurrentView('advanced')}
+              >
+                Advanced
+              </Button>
             </div>
           </div>
         </div>
@@ -196,6 +202,7 @@ const Index = () => {
         {currentView === 'dashboard' && renderDashboard()}
         {currentView === 'users' && <UserManagement />}
         {currentView === 'logs' && <ServerLogs />}
+        {currentView === 'advanced' && <AdvancedSettings />}
       </div>
     </div>
   );
