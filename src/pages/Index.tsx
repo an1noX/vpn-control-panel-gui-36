@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,29 +16,37 @@ const Index = () => {
   const [currentView, setCurrentView] = useState<'dashboard' | 'users' | 'logs' | 'advanced'>('dashboard');
   const { toast } = useToast();
 
+  // Server configuration from actual setup
+  const serverConfig = {
+    ip: '38.54.86.245',
+    ipsecPsk: 'TqNA5MFSpguyarTNJN4Y',
+    defaultUser: 'vpnuser',
+    defaultPassword: '3ptEHfmJGk3ZaivU'
+  };
+
   // Mock API calls - replace with actual backend calls
   useEffect(() => {
     // Simulate fetching server status
     setTimeout(() => {
       setServerStatus('running');
-      setActiveUsers(3);
-      setTotalUsers(7);
+      setActiveUsers(1); // Default user is connected
+      setTotalUsers(1); // Default vpnuser exists
     }, 1000);
   }, []);
 
   const handleRestartServer = async () => {
     setServerStatus('loading');
     toast({
-      title: "Restarting VPN Server",
-      description: "Please wait while the server restarts...",
+      title: "Restarting IPsec VPN Server",
+      description: "Restarting strongSwan and xl2tpd services...",
     });
 
-    // Mock restart - replace with actual API call
+    // Mock restart - replace with actual API call to restart services
     setTimeout(() => {
       setServerStatus('running');
       toast({
         title: "Server Restarted",
-        description: "VPN server has been successfully restarted.",
+        description: "IPsec and L2TP services have been successfully restarted.",
       });
     }, 3000);
   };
@@ -72,7 +81,7 @@ const Index = () => {
               )}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              xl2tpd service
+              strongSwan & xl2tpd
             </p>
           </CardContent>
         </Card>
@@ -113,7 +122,7 @@ const Index = () => {
               disabled={serverStatus === 'loading'}
               className="w-full"
             >
-              {serverStatus === 'loading' ? 'Restarting...' : 'Restart Server'}
+              {serverStatus === 'loading' ? 'Restarting...' : 'Restart Services'}
             </Button>
           </CardContent>
         </Card>
@@ -121,9 +130,50 @@ const Index = () => {
 
       <Card>
         <CardHeader>
+          <CardTitle>Server Information</CardTitle>
+          <CardDescription>
+            Your IPsec/L2TP and IKEv2 VPN server configuration
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-3">
+              <div className="bg-muted p-4 rounded-md">
+                <h4 className="font-medium mb-2 text-sm">L2TP/IPsec Configuration:</h4>
+                <div className="space-y-1 text-sm font-mono">
+                  <p><span className="text-muted-foreground">Server IP:</span> {serverConfig.ip}</p>
+                  <p><span className="text-muted-foreground">IPsec PSK:</span> {serverConfig.ipsecPsk}</p>
+                  <p><span className="text-muted-foreground">Default User:</span> {serverConfig.defaultUser}</p>
+                  <p><span className="text-muted-foreground">Default Password:</span> {serverConfig.defaultPassword}</p>
+                </div>
+              </div>
+            </div>
+            <div className="space-y-3">
+              <div className="bg-muted p-4 rounded-md">
+                <h4 className="font-medium mb-2 text-sm">IKEv2 Configuration:</h4>
+                <div className="space-y-1 text-sm font-mono">
+                  <p><span className="text-muted-foreground">Server Address:</span> {serverConfig.ip}</p>
+                  <p><span className="text-muted-foreground">Default Client:</span> vpnclient</p>
+                </div>
+                <div className="mt-2 text-xs text-muted-foreground">
+                  <p>Client configs available in /root/:</p>
+                  <ul className="list-disc list-inside mt-1">
+                    <li>vpnclient.p12 (Windows & Linux)</li>
+                    <li>vpnclient.sswan (Android)</li>
+                    <li>vpnclient.mobileconfig (iOS & macOS)</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Quick Actions</CardTitle>
           <CardDescription>
-            Manage your L2TP/IPsec VPN server
+            Manage your IPsec/L2TP and IKEv2 VPN server
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -151,7 +201,7 @@ const Index = () => {
               disabled={serverStatus === 'loading'}
             >
               <Server className="h-6 w-6 mb-2" />
-              Restart Service
+              Restart Services
             </Button>
           </div>
         </CardContent>
@@ -166,7 +216,7 @@ const Index = () => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold">VPN Server Dashboard</h1>
-              <p className="text-muted-foreground">Manage your L2TP/IPsec VPN server</p>
+              <p className="text-muted-foreground">Manage your IPsec/L2TP and IKEv2 VPN server on Debian/Ubuntu</p>
             </div>
             <div className="flex space-x-2">
               <Button 

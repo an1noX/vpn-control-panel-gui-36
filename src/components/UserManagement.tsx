@@ -8,7 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { UserPlus, Trash2, Users, Eye, EyeOff } from 'lucide-react';
+import { UserPlus, Trash2, Users, Eye, EyeOff, Download } from 'lucide-react';
 
 interface VPNUser {
   username: string;
@@ -16,6 +16,7 @@ interface VPNUser {
   status: 'active' | 'inactive';
   lastConnected?: string;
   ipAddress?: string;
+  hasIKEv2Config?: boolean;
 }
 
 export const UserManagement = () => {
@@ -26,18 +27,34 @@ export const UserManagement = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  // Mock data - replace with actual API calls
+  // Server configuration
+  const serverConfig = {
+    ip: '38.54.86.245',
+    ipsecPsk: 'TqNA5MFSpguyarTNJN4Y'
+  };
+
+  // Load initial users including the default vpnuser
   useEffect(() => {
-    const mockUsers: VPNUser[] = [
-      { username: 'john_doe', password: 'SecurePass123!', status: 'active', lastConnected: '2024-01-15 14:30', ipAddress: '192.168.1.100' },
-      { username: 'jane_smith', password: 'MyVPN2024@', status: 'active', lastConnected: '2024-01-15 13:45', ipAddress: '192.168.1.101' },
-      { username: 'bob_wilson', password: 'VPN_Password#1', status: 'inactive', lastConnected: '2024-01-14 09:20' },
-      { username: 'alice_brown', password: 'Secure123$VPN', status: 'active', lastConnected: '2024-01-15 16:15', ipAddress: '192.168.1.102' },
+    const initialUsers: VPNUser[] = [
+      { 
+        username: 'vpnuser', 
+        password: '3ptEHfmJGk3ZaivU', 
+        status: 'active', 
+        lastConnected: '2024-01-15 14:30', 
+        ipAddress: '192.168.42.10',
+        hasIKEv2Config: false
+      },
+      { 
+        username: 'vpnclient', 
+        password: 'IKEv2 Certificate', 
+        status: 'inactive', 
+        hasIKEv2Config: true
+      }
     ];
-    setUsers(mockUsers);
+    setUsers(initialUsers);
   }, []);
 
-  // Validation logic from the original script
+  // Validation logic for Debian/Ubuntu VPN setup
   const validateCredentials = (username: string, password: string) => {
     if (!username || !password) {
       return "Username and password are required.";
@@ -49,10 +66,15 @@ export const UserManagement = () => {
       return "VPN credentials must not contain non-ASCII characters.";
     }
 
-    // Check for special characters
-    const hasSpecialChars = /[\\\"']/.test(username + ' ' + password);
+    // Check for special characters that break shell scripts
+    const hasSpecialChars = /[\\\"'`$]/.test(username + ' ' + password);
     if (hasSpecialChars) {
-      return "VPN credentials must not contain these special characters: \\ \" '";
+      return "VPN credentials must not contain these special characters: \\ \" ' ` $";
+    }
+
+    // Check for spaces
+    if (username.includes(' ') || password.includes(' ')) {
+      return "VPN credentials must not contain spaces.";
     }
 
     return null;
@@ -74,36 +96,26 @@ export const UserManagement = () => {
     if (userExists) {
       toast({
         title: "User Update",
-        description: `User "${newUser.username}" already exists. Password will be updated.`,
+        description: `User "${newUser.username}" already exists. Use /opt/src/addvpnuser.sh to update.`,
       });
+      return;
     }
 
     setIsLoading(true);
 
-    // Mock API call - replace with actual backend call
+    // Mock API call - in reality this would call /opt/src/addvpnuser.sh
     setTimeout(() => {
-      if (userExists) {
-        setUsers(prev => prev.map(user => 
-          user.username === newUser.username 
-            ? { ...user, password: newUser.password }
-            : user
-        ));
-        toast({
-          title: "User Updated",
-          description: `Password for "${newUser.username}" has been updated.`,
-        });
-      } else {
-        const newVPNUser: VPNUser = {
-          username: newUser.username,
-          password: newUser.password,
-          status: 'inactive',
-        };
-        setUsers(prev => [...prev, newVPNUser]);
-        toast({
-          title: "User Added",
-          description: `VPN user "${newUser.username}" has been created successfully.`,
-        });
-      }
+      const newVPNUser: VPNUser = {
+        username: newUser.username,
+        password: newUser.password,
+        status: 'inactive',
+        hasIKEv2Config: false,
+      };
+      setUsers(prev => [...prev, newVPNUser]);
+      toast({
+        title: "User Added",
+        description: `VPN user "${newUser.username}" has been created. Run /opt/src/addvpnuser.sh on the server to activate.`,
+      });
 
       setNewUser({ username: '', password: '' });
       setShowAddDialog(false);
@@ -112,18 +124,34 @@ export const UserManagement = () => {
   };
 
   const handleDeleteUser = async (username: string) => {
+    if (username === 'vpnuser' || username === 'vpnclient') {
+      toast({
+        title: "Cannot Delete",
+        description: "Default users cannot be deleted through the dashboard.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!confirm(`Are you sure you want to delete user "${username}"?`)) {
       return;
     }
 
-    // Mock API call - replace with actual backend call
+    // Mock API call - in reality this would call /opt/src/delvpnuser.sh
     setTimeout(() => {
       setUsers(prev => prev.filter(user => user.username !== username));
       toast({
         title: "User Deleted",
-        description: `VPN user "${username}" has been removed.`,
+        description: `VPN user "${username}" has been removed. Run /opt/src/delvpnuser.sh on the server to complete removal.`,
       });
     }, 500);
+  };
+
+  const handleGenerateIKEv2Config = (username: string) => {
+    toast({
+      title: "IKEv2 Config Generation",
+      description: `Run /opt/src/ikev2.sh to generate IKEv2 configuration for "${username}". Config files will be saved to /root/`,
+    });
   };
 
   const togglePasswordVisibility = (username: string) => {
@@ -144,7 +172,7 @@ export const UserManagement = () => {
                 <span>VPN Users</span>
               </CardTitle>
               <CardDescription>
-                Manage L2TP/IPsec and Cisco IPsec VPN user accounts
+                Manage L2TP/IPsec and IKEv2 VPN user accounts on Debian/Ubuntu
               </CardDescription>
             </div>
             <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
@@ -156,10 +184,9 @@ export const UserManagement = () => {
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Add or Update VPN User</DialogTitle>
+                  <DialogTitle>Add VPN User</DialogTitle>
                   <DialogDescription>
-                    If the username already exists, it will be updated with the new password.
-                    Write down these credentials - you'll need them to connect!
+                    Create a new VPN user. You'll need to run /opt/src/addvpnuser.sh on the server to activate the user.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
@@ -183,9 +210,10 @@ export const UserManagement = () => {
                     />
                   </div>
                   <div className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
-                    <p className="font-medium mb-1">Requirements:</p>
+                    <p className="font-medium mb-1">Requirements for Debian/Ubuntu VPN:</p>
                     <ul className="list-disc list-inside space-y-1 text-xs">
-                      <li>No special characters: \ " '</li>
+                      <li>No special characters: \ " ' ` $</li>
+                      <li>No spaces allowed</li>
                       <li>ASCII characters only</li>
                       <li>Both username and password required</li>
                     </ul>
@@ -196,7 +224,7 @@ export const UserManagement = () => {
                     onClick={handleAddUser}
                     disabled={isLoading}
                   >
-                    {isLoading ? 'Adding...' : 'Add/Update User'}
+                    {isLoading ? 'Adding...' : 'Add User'}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -209,7 +237,7 @@ export const UserManagement = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Username</TableHead>
-                  <TableHead>Password</TableHead>
+                  <TableHead>Password/Auth</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Last Connected</TableHead>
                   <TableHead>IP Address</TableHead>
@@ -222,20 +250,22 @@ export const UserManagement = () => {
                     <TableCell className="font-medium">{user.username}</TableCell>
                     <TableCell>
                       <div className="flex items-center space-x-2">
-                        <span className="font-mono">
-                          {showPasswords[user.username] ? user.password : '••••••••'}
+                        <span className="font-mono text-sm">
+                          {user.hasIKEv2Config ? 'Certificate' : (showPasswords[user.username] ? user.password : '••••••••')}
                         </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => togglePasswordVisibility(user.username)}
-                        >
-                          {showPasswords[user.username] ? (
-                            <EyeOff className="h-4 w-4" />
-                          ) : (
-                            <Eye className="h-4 w-4" />
-                          )}
-                        </Button>
+                        {!user.hasIKEv2Config && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => togglePasswordVisibility(user.username)}
+                          >
+                            {showPasswords[user.username] ? (
+                              <EyeOff className="h-4 w-4" />
+                            ) : (
+                              <Eye className="h-4 w-4" />
+                            )}
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -250,13 +280,27 @@ export const UserManagement = () => {
                       {user.ipAddress || '-'}
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteUser(user.username)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex space-x-1">
+                        {!user.hasIKEv2Config && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleGenerateIKEv2Config(user.username)}
+                            title="Generate IKEv2 config"
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {user.username !== 'vpnuser' && user.username !== 'vpnclient' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteUser(user.username)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -275,22 +319,47 @@ export const UserManagement = () => {
         <CardHeader>
           <CardTitle>VPN Client Setup</CardTitle>
           <CardDescription>
-            Instructions for connecting to your VPN server
+            Instructions for connecting to your Debian/Ubuntu VPN server
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="bg-muted p-4 rounded-md">
-              <h4 className="font-medium mb-2">Connection Details:</h4>
-              <div className="space-y-1 text-sm">
-                <p><strong>Server Type:</strong> L2TP/IPsec</p>
-                <p><strong>Server Address:</strong> Your server IP or domain</p>
-                <p><strong>Pre-shared Key:</strong> Check /etc/ipsec.secrets</p>
-                <p><strong>Authentication:</strong> Use the username and password created above</p>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="bg-muted p-4 rounded-md">
+                <h4 className="font-medium mb-2">L2TP/IPsec Connection:</h4>
+                <div className="space-y-1 text-sm font-mono">
+                  <p><strong>Server Address:</strong> {serverConfig.ip}</p>
+                  <p><strong>Pre-shared Key:</strong> {serverConfig.ipsecPsk}</p>
+                  <p><strong>Username:</strong> vpnuser (or created user)</p>
+                  <p><strong>Password:</strong> 3ptEHfmJGk3ZaivU (or user password)</p>
+                </div>
+              </div>
+              <div className="bg-muted p-4 rounded-md">
+                <h4 className="font-medium mb-2">IKEv2 Connection:</h4>
+                <div className="space-y-1 text-sm">
+                  <p><strong>Server Address:</strong> {serverConfig.ip}</p>
+                  <p><strong>Authentication:</strong> Certificate-based</p>
+                  <p><strong>Config Files:</strong> Located in /root/</p>
+                  <ul className="list-disc list-inside text-xs mt-1 text-muted-foreground">
+                    <li>vpnclient.p12 (Windows & Linux)</li>
+                    <li>vpnclient.sswan (Android)</li>
+                    <li>vpnclient.mobileconfig (iOS & macOS)</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-md">
+              <h4 className="font-medium mb-2">Server Scripts:</h4>
+              <div className="text-sm space-y-1 font-mono">
+                <p><strong>/opt/src/addvpnuser.sh:</strong> Add/update VPN users</p>
+                <p><strong>/opt/src/delvpnuser.sh:</strong> Delete VPN users</p>
+                <p><strong>/opt/src/ikev2.sh:</strong> Generate IKEv2 client configs</p>
+                <p><strong>/root/setup.sh:</strong> Initial VPN server setup</p>
+                <p><strong>/root/vpn.sh:</strong> VPN management script</p>
               </div>
             </div>
             <div className="text-sm text-muted-foreground">
-              <p>For detailed setup instructions visit: <a href="https://vpnsetup.net/clients" className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">https://vpnsetup.net/clients</a></p>
+              <p>For detailed client setup instructions visit: <a href="https://vpnsetup.net/clients" className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">https://vpnsetup.net/clients</a></p>
             </div>
           </div>
         </CardContent>
