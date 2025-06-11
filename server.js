@@ -1,10 +1,10 @@
 
-const express = require('express');
-const cors = require('cors');
-const fs = require('fs');
-const path = require('path');
-const { exec } = require('child_process');
-const bodyParser = require('body-parser');
+import express from 'express';
+import cors from 'cors';
+import fs from 'fs';
+import path from 'path';
+import { exec } from 'child_process';
+import bodyParser from 'body-parser';
 
 const app = express();
 const PORT = 3000;
