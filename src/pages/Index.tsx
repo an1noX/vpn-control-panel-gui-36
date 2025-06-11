@@ -74,7 +74,7 @@ const Index = () => {
               <h1 className="text-3xl font-bold">Debian/Ubuntu VPN Server Dashboard</h1>
               <p className="text-muted-foreground">Manage your IPsec/L2TP and IKEv2 VPN server</p>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-4">
               <BackendHelpDialog />
               <div className="flex space-x-2">
                 <Button 
