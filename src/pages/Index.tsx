@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,6 +7,7 @@ import { ServerLogs } from '@/components/ServerLogs';
 import { AdvancedSettings } from '@/components/AdvancedSettings';
 import { ServerStatusCard } from '@/components/ServerStatusCard';
 import { ServerConfigCard } from '@/components/ServerConfigCard';
+import { BackendHelpDialog } from '@/components/BackendHelpDialog';
 
 const Index = () => {
   const [currentView, setCurrentView] = useState<'dashboard' | 'users' | 'logs' | 'advanced'>('dashboard');
@@ -74,31 +74,34 @@ const Index = () => {
               <h1 className="text-3xl font-bold">Debian/Ubuntu VPN Server Dashboard</h1>
               <p className="text-muted-foreground">Manage your IPsec/L2TP and IKEv2 VPN server</p>
             </div>
-            <div className="flex space-x-2">
-              <Button 
-                variant={currentView === 'dashboard' ? 'default' : 'outline'}
-                onClick={() => setCurrentView('dashboard')}
-              >
-                Dashboard
-              </Button>
-              <Button 
-                variant={currentView === 'users' ? 'default' : 'outline'}
-                onClick={() => setCurrentView('users')}
-              >
-                Users
-              </Button>
-              <Button 
-                variant={currentView === 'logs' ? 'default' : 'outline'}
-                onClick={() => setCurrentView('logs')}
-              >
-                Logs
-              </Button>
-              <Button 
-                variant={currentView === 'advanced' ? 'default' : 'outline'}
-                onClick={() => setCurrentView('advanced')}
-              >
-                Advanced
-              </Button>
+            <div className="flex items-center space-x-2">
+              <BackendHelpDialog />
+              <div className="flex space-x-2">
+                <Button 
+                  variant={currentView === 'dashboard' ? 'default' : 'outline'}
+                  onClick={() => setCurrentView('dashboard')}
+                >
+                  Dashboard
+                </Button>
+                <Button 
+                  variant={currentView === 'users' ? 'default' : 'outline'}
+                  onClick={() => setCurrentView('users')}
+                >
+                  Users
+                </Button>
+                <Button 
+                  variant={currentView === 'logs' ? 'default' : 'outline'}
+                  onClick={() => setCurrentView('logs')}
+                >
+                  Logs
+                </Button>
+                <Button 
+                  variant={currentView === 'advanced' ? 'default' : 'outline'}
+                  onClick={() => setCurrentView('advanced')}
+                >
+                  Advanced
+                </Button>
+              </div>
             </div>
           </div>
         </div>
