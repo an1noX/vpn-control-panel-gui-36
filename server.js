@@ -9,7 +9,14 @@ import bodyParser from 'body-parser';
 const app = express();
 const PORT = 3000;
 
-app.use(cors());
+// Configure CORS to allow all origins
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: false
+}));
+
 app.use(bodyParser.json());
 
 /**
