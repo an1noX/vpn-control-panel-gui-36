@@ -1,8 +1,9 @@
 
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Copy, Download } from 'lucide-react';
+import { Copy, Download, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useVPNApi } from '@/hooks/useVPNApi';
 
@@ -17,7 +18,9 @@ interface ServerConfigCardProps {
 
 export const ServerConfigCard = ({ serverConfig }: ServerConfigCardProps) => {
   const { toast } = useToast();
-  const { downloadConfigFile } = useVPNApi();
+  const { downloadConfigFile, checkFileExists } = useVPNApi();
+  const [fileStatuses, setFileStatuses] = useState<{ [key: string]: boolean }>({});
+  const [isCheckingFiles, setIsCheckingFiles] = useState(true);
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -32,6 +35,36 @@ export const ServerConfigCard = ({ serverConfig }: ServerConfigCardProps) => {
     { name: 'vpnclient.sswan', label: 'Android', description: 'strongSwan config' },
     { name: 'vpnclient.mobileconfig', label: 'iOS & macOS', description: 'Apple configuration profile' }
   ];
+
+  useEffect(() => {
+    const checkAllFiles = async () => {
+      setIsCheckingFiles(true);
+      const statuses: { [key: string]: boolean } = {};
+      
+      for (const file of configFiles) {
+        const result = await checkFileExists(`/root/${file.name}`);
+        statuses[file.name] = result.exists;
+      }
+      
+      setFileStatuses(statuses);
+      setIsCheckingFiles(false);
+    };
+
+    checkAllFiles();
+  }, []);
+
+  const handleDownload = async (filename: string) => {
+    const success = await downloadConfigFile(filename);
+    
+    // Refresh file status after download attempt
+    if (success) {
+      const result = await checkFileExists(`/root/${filename}`);
+      setFileStatuses(prev => ({
+        ...prev,
+        [filename]: result.exists
+      }));
+    }
+  };
 
   return (
     <Card>
@@ -137,22 +170,33 @@ export const ServerConfigCard = ({ serverConfig }: ServerConfigCardProps) => {
               <div className="mt-4">
                 <h5 className="font-medium text-xs mb-2">Configuration Files (/root/):</h5>
                 <div className="space-y-2">
-                  {configFiles.map((file) => (
-                    <div key={file.name} className="flex items-center justify-between">
-                      <div>
-                        <div className="text-xs font-mono">{file.name}</div>
-                        <div className="text-xs text-muted-foreground">{file.label}</div>
+                  {isCheckingFiles ? (
+                    <div className="text-xs text-muted-foreground">Checking file availability...</div>
+                  ) : (
+                    configFiles.map((file) => (
+                      <div key={file.name} className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <div className="text-xs font-mono">{file.name}</div>
+                          {fileStatuses[file.name] === false && (
+                            <AlertTriangle className="h-3 w-3 text-orange-500" title="File not found" />
+                          )}
+                          <div className="text-xs text-muted-foreground">{file.label}</div>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDownload(file.name)}
+                          title={fileStatuses[file.name] === false ? 
+                            "File not found on server" : 
+                            `Download ${file.description}`
+                          }
+                          disabled={fileStatuses[file.name] === false}
+                        >
+                          <Download className="h-3 w-3" />
+                        </Button>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => downloadConfigFile(file.name)}
-                        title={`Download ${file.description}`}
-                      >
-                        <Download className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </div>
             </div>

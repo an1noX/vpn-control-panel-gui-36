@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,6 +7,7 @@ import { Separator } from '@/components/ui/separator';
 import { Settings, Shield, Network, Server, AlertTriangle, FileText, Copy } from 'lucide-react';
 import { useVPNApi } from '@/hooks/useVPNApi';
 import { useToast } from '@/hooks/use-toast';
+import { ConfigFileChecker } from '@/components/ConfigFileChecker';
 
 export const AdvancedSettings = () => {
   const { restartServices } = useVPNApi();
@@ -62,6 +62,8 @@ export const AdvancedSettings = () => {
           </div>
         </CardContent>
       </Card>
+
+      <ConfigFileChecker />
 
       <Card>
         <CardHeader>
