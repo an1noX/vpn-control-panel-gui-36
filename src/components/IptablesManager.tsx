@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Shield, Plus, Trash2, RefreshCw, AlertTriangle, Copy } from 'lucide-react';
+import { Shield, Plus, Trash2, RefreshCw, AlertTriangle, Copy, Edit } from 'lucide-react';
 import { useVPNApi, IptablesRule } from '@/hooks/useVPNApi';
 import { useToast } from '@/hooks/use-toast';
 
@@ -18,10 +18,11 @@ export const IptablesManager = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [iptablesAvailable, setIptablesAvailable] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const [newRule, setNewRule] = useState({ chain: 'INPUT', rule: '' });
+  const [editingRule, setEditingRule] = useState<IptablesRule | null>(null);
 
   const checkIptablesAvailability = async () => {
-    // Check if iptables is available by checking common paths
     const iptablesPaths = ['/usr/sbin/iptables', '/sbin/iptables', '/bin/iptables'];
     
     for (const path of iptablesPaths) {
@@ -73,12 +74,44 @@ export const IptablesManager = () => {
     }
   };
 
-  const handleRemoveRule = async (chain: string, ruleNumber: number) => {
-    if (!confirm(`Are you sure you want to remove this rule from the ${chain} chain?`)) {
+  const handleEditRule = (rule: IptablesRule) => {
+    setEditingRule(rule);
+    setNewRule({ chain: rule.chain, rule: rule.rule });
+    setShowEditDialog(true);
+  };
+
+  const handleUpdateRule = async () => {
+    if (!editingRule || !newRule.rule.trim()) {
+      toast({
+        title: "Invalid Rule",
+        description: "Please enter a valid iptables rule",
+        variant: "destructive",
+      });
       return;
     }
 
-    const success = await removeIptablesRule(chain, ruleNumber);
+    // First remove the old rule, then add the new one
+    const ruleIndex = rules.findIndex(r => r.id === editingRule.id) + 1;
+    const removeSuccess = await removeIptablesRule(editingRule.chain, ruleIndex);
+    
+    if (removeSuccess) {
+      const addSuccess = await addIptablesRule(newRule.chain, newRule.rule);
+      if (addSuccess) {
+        setShowEditDialog(false);
+        setEditingRule(null);
+        setNewRule({ chain: 'INPUT', rule: '' });
+        await loadRules();
+      }
+    }
+  };
+
+  const handleRemoveRule = async (rule: IptablesRule) => {
+    if (!confirm(`Are you sure you want to remove this rule from the ${rule.chain} chain?`)) {
+      return;
+    }
+
+    const ruleIndex = rules.findIndex(r => r.id === rule.id) + 1;
+    const success = await removeIptablesRule(rule.chain, ruleIndex);
     if (success) {
       await loadRules();
     }
@@ -98,7 +131,7 @@ export const IptablesManager = () => {
     { name: 'Allow VPN - L2TP', rule: '-p udp --dport 1701 -j ACCEPT', description: 'Allow L2TP traffic' },
     { name: 'Allow VPN - ESP', rule: '-p esp -j ACCEPT', description: 'Allow ESP (Encapsulating Security Payload)' },
     { name: 'Forward VPN Traffic', rule: '-i ppp+ -j ACCEPT', description: 'Allow forwarding for VPN clients' },
-    { name: 'NAT Masquerade', rule: '-t nat -A POSTROUTING -s 192.168.42.0/24 -o eth0 -j MASQUERADE', description: 'NAT for VPN subnet' }
+    { name: 'SSH Access', rule: '-p tcp --dport 22 -j ACCEPT', description: 'Allow SSH connections' }
   ];
 
   if (!iptablesAvailable) {
@@ -226,6 +259,46 @@ export const IptablesManager = () => {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+
+            <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Edit IPTables Rule</DialogTitle>
+                  <DialogDescription>
+                    Modify the selected firewall rule
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="editChain">Chain</Label>
+                    <Select value={newRule.chain} onValueChange={(value) => setNewRule(prev => ({ ...prev, chain: value }))}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="INPUT">INPUT</SelectItem>
+                        <SelectItem value="OUTPUT">OUTPUT</SelectItem>
+                        <SelectItem value="FORWARD">FORWARD</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="editRule">Rule</Label>
+                    <Input
+                      id="editRule"
+                      value={newRule.rule}
+                      onChange={(e) => setNewRule(prev => ({ ...prev, rule: e.target.value }))}
+                      placeholder="-p udp --dport 500 -j ACCEPT"
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowEditDialog(false)}>Cancel</Button>
+                  <Button onClick={handleUpdateRule}>Update Rule</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
             <Button
               onClick={loadRules}
               disabled={isLoading}
@@ -254,7 +327,16 @@ export const IptablesManager = () => {
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => handleRemoveRule(rule.chain, index + 1)}
+                    onClick={() => handleEditRule(rule)}
+                    title="Edit rule"
+                  >
+                    <Edit className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleRemoveRule(rule)}
+                    title="Delete rule"
                   >
                     <Trash2 className="h-3 w-3" />
                   </Button>
