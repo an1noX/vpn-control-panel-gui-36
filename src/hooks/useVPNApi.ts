@@ -1,4 +1,3 @@
-
 import { useToast } from '@/hooks/use-toast';
 
 // API configuration - updated to match your backend server
@@ -534,6 +533,30 @@ export const useVPNApi = () => {
     return results;
   };
 
+  // Execute system commands on the server
+  const executeCommand = async (command: string): Promise<{ success: boolean; output?: string; error?: string }> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to execute command: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      return result;
+    } catch (error) {
+      console.error(`Error executing command ${command}:`, error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  };
+
   return {
     // User management
     addUser,
@@ -558,6 +581,9 @@ export const useVPNApi = () => {
     getIptablesRules,
     addIptablesRule,
     removeIptablesRule,
+    
+    // System command execution
+    executeCommand,
     
     // Mock data
     mockUsers

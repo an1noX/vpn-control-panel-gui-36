@@ -1,24 +1,48 @@
-import { useState } from 'react';
+
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
-import { Settings, Shield, Network, Server, AlertTriangle, FileText, Copy } from 'lucide-react';
-import { useVPNApi } from '@/hooks/useVPNApi';
+import { Settings, Shield, Network, Server, AlertTriangle, FileText, Copy, RefreshCw } from 'lucide-react';
+import { useVPNApi, ServerStatus } from '@/hooks/useVPNApi';
 import { useToast } from '@/hooks/use-toast';
 import { ConfigFileChecker } from '@/components/ConfigFileChecker';
 import { FileEditor } from '@/components/FileEditor';
 import { IptablesManager } from '@/components/IptablesManager';
+import { PortForwardingManager } from '@/components/PortForwardingManager';
 
 export const AdvancedSettings = () => {
-  const { restartServices } = useVPNApi();
+  const { restartServices, getServerStatus } = useVPNApi();
   const { toast } = useToast();
   const [isRestarting, setIsRestarting] = useState(false);
+  const [serverStatus, setServerStatus] = useState<ServerStatus | null>(null);
+  const [isLoadingStatus, setIsLoadingStatus] = useState(false);
+
+  const loadServerStatus = async () => {
+    setIsLoadingStatus(true);
+    try {
+      const status = await getServerStatus();
+      setServerStatus(status);
+    } catch (error) {
+      console.error('Failed to load server status:', error);
+    }
+    setIsLoadingStatus(false);
+  };
+
+  useEffect(() => {
+    loadServerStatus();
+    // Refresh status every 30 seconds
+    const interval = setInterval(loadServerStatus, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleRestartServices = async () => {
     setIsRestarting(true);
     await restartServices();
+    // Reload status after restart
+    setTimeout(loadServerStatus, 2000);
     setIsRestarting(false);
   };
 
@@ -28,6 +52,16 @@ export const AdvancedSettings = () => {
       title: "Copied to clipboard",
       description: description,
     });
+  };
+
+  const getServiceStatus = (serviceName: keyof ServerStatus['services']) => {
+    if (!serverStatus) return 'Unknown';
+    return serverStatus.services[serviceName] ? 'Active' : 'Inactive';
+  };
+
+  const getServiceBadgeVariant = (serviceName: keyof ServerStatus['services']) => {
+    if (!serverStatus) return 'secondary';
+    return serverStatus.services[serviceName] ? 'default' : 'destructive';
   };
 
   return (
@@ -69,17 +103,32 @@ export const AdvancedSettings = () => {
 
       <IptablesManager />
 
+      <PortForwardingManager />
+
       <ConfigFileChecker />
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Shield className="h-5 w-5" />
-            <span>IPsec/L2TP Configuration</span>
-          </CardTitle>
-          <CardDescription>
-            Core settings for IPsec/L2TP VPN on Debian/Ubuntu
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center space-x-2">
+                <Shield className="h-5 w-5" />
+                <span>IPsec/L2TP Configuration</span>
+              </CardTitle>
+              <CardDescription>
+                Live status of IPsec/L2TP VPN services on Debian/Ubuntu
+              </CardDescription>
+            </div>
+            <Button
+              onClick={loadServerStatus}
+              disabled={isLoadingStatus}
+              size="sm"
+              variant="outline"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingStatus ? 'animate-spin' : ''}`} />
+              {isLoadingStatus ? 'Loading...' : 'Refresh'}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-3">
@@ -88,8 +137,8 @@ export const AdvancedSettings = () => {
                 <h4 className="text-sm font-medium">strongSwan Service</h4>
                 <p className="text-xs text-muted-foreground">IPsec daemon for Debian/Ubuntu</p>
               </div>
-              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                Active
+              <Badge variant={getServiceBadgeVariant('strongswan')}>
+                {getServiceStatus('strongswan')}
               </Badge>
             </div>
             <div className="flex items-center justify-between">
@@ -97,11 +146,41 @@ export const AdvancedSettings = () => {
                 <h4 className="text-sm font-medium">xl2tpd Service</h4>
                 <p className="text-xs text-muted-foreground">L2TP daemon for layer 2 tunneling</p>
               </div>
-              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                Active
+              <Badge variant={getServiceBadgeVariant('xl2tpd')}>
+                {getServiceStatus('xl2tpd')}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-sm font-medium">IPsec Service</h4>
+                <p className="text-xs text-muted-foreground">Core IPsec functionality</p>
+              </div>
+              <Badge variant={getServiceBadgeVariant('ipsec')}>
+                {getServiceStatus('ipsec')}
               </Badge>
             </div>
           </div>
+
+          {serverStatus && (
+            <>
+              <Separator />
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium">Server Information</h4>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">Active Connections:</span>
+                    <span className="ml-2 font-medium">{serverStatus.activeConnections}</span>
+                  </div>
+                  {serverStatus.uptime && (
+                    <div>
+                      <span className="text-muted-foreground">Uptime:</span>
+                      <span className="ml-2 font-medium">{serverStatus.uptime}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
 
           <Separator />
 
@@ -134,84 +213,6 @@ export const AdvancedSettings = () => {
                   size="sm"
                   variant="ghost"
                   onClick={() => copyToClipboard('/etc/xl2tpd/xl2tpd.conf', 'xl2tpd configuration path')}
-                >
-                  <Copy className="h-3 w-3" />
-                </Button>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Network className="h-5 w-5" />
-            <span>Port Forwarding & Firewall</span>
-          </CardTitle>
-          <CardDescription>
-            Network configuration for Debian/Ubuntu VPN server
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-3">
-            <h4 className="text-sm font-medium">Required Ports</h4>
-            <div className="grid gap-2">
-              <div className="flex items-center justify-between p-3 bg-muted rounded">
-                <div>
-                  <span className="font-mono text-sm">UDP 500</span>
-                  <p className="text-xs text-muted-foreground">IKE (Internet Key Exchange)</p>
-                </div>
-                <Badge variant="outline">Required</Badge>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-muted rounded">
-                <div>
-                  <span className="font-mono text-sm">UDP 4500</span>
-                  <p className="text-xs text-muted-foreground">IPsec NAT Traversal</p>
-                </div>
-                <Badge variant="outline">Required</Badge>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-muted rounded">
-                <div>
-                  <span className="font-mono text-sm">UDP 1701</span>
-                  <p className="text-xs text-muted-foreground">L2TP</p>
-                </div>
-                <Badge variant="outline">Required</Badge>
-              </div>
-            </div>
-          </div>
-
-          <Separator />
-
-          <div className="space-y-3">
-            <h4 className="text-sm font-medium">UFW Commands</h4>
-            <div className="space-y-2 text-xs font-mono">
-              <div className="flex items-center justify-between p-2 bg-muted rounded">
-                <span>ufw allow 500/udp</span>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => copyToClipboard('ufw allow 500/udp', 'UFW rule for IKE')}
-                >
-                  <Copy className="h-3 w-3" />
-                </Button>
-              </div>
-              <div className="flex items-center justify-between p-2 bg-muted rounded">
-                <span>ufw allow 4500/udp</span>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => copyToClipboard('ufw allow 4500/udp', 'UFW rule for NAT-T')}
-                >
-                  <Copy className="h-3 w-3" />
-                </Button>
-              </div>
-              <div className="flex items-center justify-between p-2 bg-muted rounded">
-                <span>ufw allow 1701/udp</span>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => copyToClipboard('ufw allow 1701/udp', 'UFW rule for L2TP')}
                 >
                   <Copy className="h-3 w-3" />
                 </Button>
