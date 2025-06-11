@@ -10,15 +10,6 @@ import { Badge } from '@/components/ui/badge';
 import { UserPlus, Trash2, Users, Eye, EyeOff, Download } from 'lucide-react';
 import { useVPNApi, VPNUser } from '@/hooks/useVPNApi';
 
-interface VPNUser {
-  username: string;
-  password: string;
-  status: 'active' | 'inactive';
-  lastConnected?: string;
-  ipAddress?: string;
-  hasIKEv2Config?: boolean;
-}
-
 export const UserManagement = () => {
   const [users, setUsers] = useState<VPNUser[]>([]);
   const [newUser, setNewUser] = useState({ username: '', password: '' });
