@@ -7,7 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { UserPlus, Trash2, Users, Eye, EyeOff, Download } from 'lucide-react';
+import { UserPlus, Trash2, Users, Eye, EyeOff, Download, RefreshCw } from 'lucide-react';
 import { useVPNApi, VPNUser } from '@/hooks/useVPNApi';
 
 export const UserManagement = () => {
@@ -16,8 +16,9 @@ export const UserManagement = () => {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const { toast } = useToast();
-  const { addUser, deleteUser, generateIKEv2Config, downloadConfigFile, mockUsers } = useVPNApi();
+  const { addUser, deleteUser, generateIKEv2Config, downloadConfigFile, mockUsers, getUsers } = useVPNApi();
 
   // Server configuration
   const serverConfig = {
@@ -25,10 +26,25 @@ export const UserManagement = () => {
     ipsecPsk: 'TqNA5MFSpguyarTNJN4Y'
   };
 
+  // Load users from backend
+  const loadUsers = async () => {
+    setIsRefreshing(true);
+    try {
+      const backendUsers = await getUsers();
+      setUsers(backendUsers);
+    } catch (error) {
+      console.error('Failed to load users:', error);
+      // Fallback to mock users if backend fails
+      setUsers(mockUsers);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   // Load initial users
   useEffect(() => {
-    setUsers(mockUsers);
-  }, [mockUsers]);
+    loadUsers();
+  }, []);
 
   // Validation logic for Debian/Ubuntu VPN setup
   const validateCredentials = (username: string, password: string) => {
@@ -72,7 +88,8 @@ export const UserManagement = () => {
     if (userExists) {
       toast({
         title: "User Exists",
-        description: `User "${newUser.username}" already exists. Use /opt/src/addvpnuser.sh to update.`,
+        description: `User "${newUser.username}" already exists.`,
+        variant: "destructive",
       });
       return;
     }
@@ -81,13 +98,8 @@ export const UserManagement = () => {
     const success = await addUser(newUser.username, newUser.password);
     
     if (success) {
-      const newVPNUser: VPNUser = {
-        username: newUser.username,
-        password: newUser.password,
-        status: 'inactive',
-        hasIKEv2Config: false,
-      };
-      setUsers(prev => [...prev, newVPNUser]);
+      // Refresh the user list from backend
+      await loadUsers();
       setNewUser({ username: '', password: '' });
       setShowAddDialog(false);
     }
@@ -111,12 +123,21 @@ export const UserManagement = () => {
 
     const success = await deleteUser(username);
     if (success) {
-      setUsers(prev => prev.filter(user => user.username !== username));
+      // Refresh the user list from backend
+      await loadUsers();
     }
   };
 
   const handleGenerateIKEv2Config = async (username: string) => {
-    await generateIKEv2Config(username);
+    const success = await generateIKEv2Config(username);
+    if (success) {
+      // Refresh the user list to update config status
+      await loadUsers();
+    }
+  };
+
+  const handleDownloadConfig = async (filename: string) => {
+    await downloadConfigFile(filename);
   };
 
   const togglePasswordVisibility = (username: string) => {
@@ -140,60 +161,70 @@ export const UserManagement = () => {
                 Manage L2TP/IPsec and IKEv2 VPN user accounts on Debian/Ubuntu
               </CardDescription>
             </div>
-            <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-              <DialogTrigger asChild>
-                <Button>
-                  <UserPlus className="h-4 w-4 mr-2" />
-                  Add User
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Add VPN User</DialogTitle>
-                  <DialogDescription>
-                    Create a new VPN user. You'll need to run /opt/src/addvpnuser.sh on the server to activate the user.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="username">Username</Label>
-                    <Input
-                      id="username"
-                      value={newUser.username}
-                      onChange={(e) => setNewUser(prev => ({ ...prev, username: e.target.value }))}
-                      placeholder="Enter username"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      value={newUser.password}
-                      onChange={(e) => setNewUser(prev => ({ ...prev, password: e.target.value }))}
-                      placeholder="Enter password"
-                    />
-                  </div>
-                  <div className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
-                    <p className="font-medium mb-1">Requirements for Debian/Ubuntu VPN:</p>
-                    <ul className="list-disc list-inside space-y-1 text-xs">
-                      <li>No special characters: \ " ' ` $</li>
-                      <li>No spaces allowed</li>
-                      <li>ASCII characters only</li>
-                      <li>Both username and password required</li>
-                    </ul>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button 
-                    onClick={handleAddUser}
-                    disabled={isLoading}
-                  >
-                    {isLoading ? 'Adding...' : 'Add User'}
+            <div className="flex space-x-2">
+              <Button
+                variant="outline"
+                onClick={loadUsers}
+                disabled={isRefreshing}
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+              <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Add User
                   </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add VPN User</DialogTitle>
+                    <DialogDescription>
+                      Create a new VPN user. The user will be added to the server via addvpnuser.sh script.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="username">Username</Label>
+                      <Input
+                        id="username"
+                        value={newUser.username}
+                        onChange={(e) => setNewUser(prev => ({ ...prev, username: e.target.value }))}
+                        placeholder="Enter username"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="password">Password</Label>
+                      <Input
+                        id="password"
+                        type="password"
+                        value={newUser.password}
+                        onChange={(e) => setNewUser(prev => ({ ...prev, password: e.target.value }))}
+                        placeholder="Enter password"
+                      />
+                    </div>
+                    <div className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
+                      <p className="font-medium mb-1">Requirements for Debian/Ubuntu VPN:</p>
+                      <ul className="list-disc list-inside space-y-1 text-xs">
+                        <li>No special characters: \ " ' ` $</li>
+                        <li>No spaces allowed</li>
+                        <li>ASCII characters only</li>
+                        <li>Both username and password required</li>
+                      </ul>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button 
+                      onClick={handleAddUser}
+                      disabled={isLoading}
+                    >
+                      {isLoading ? 'Adding...' : 'Add User'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -202,10 +233,9 @@ export const UserManagement = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Username</TableHead>
-                  <TableHead>Password/Auth</TableHead>
+                  <TableHead>Auth Type</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Last Connected</TableHead>
-                  <TableHead>IP Address</TableHead>
+                  <TableHead>Config Files</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -214,24 +244,9 @@ export const UserManagement = () => {
                   <TableRow key={user.username}>
                     <TableCell className="font-medium">{user.username}</TableCell>
                     <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <span className="font-mono text-sm">
-                          {user.hasIKEv2Config ? 'Certificate' : (showPasswords[user.username] ? user.password : '••••••••')}
-                        </span>
-                        {!user.hasIKEv2Config && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => togglePasswordVisibility(user.username)}
-                          >
-                            {showPasswords[user.username] ? (
-                              <EyeOff className="h-4 w-4" />
-                            ) : (
-                              <Eye className="h-4 w-4" />
-                            )}
-                          </Button>
-                        )}
-                      </div>
+                      <Badge variant={user.hasIKEv2Config ? 'default' : 'secondary'}>
+                        {user.hasIKEv2Config ? 'Certificate' : 'Password'}
+                      </Badge>
                     </TableCell>
                     <TableCell>
                       <Badge variant={user.status === 'active' ? 'default' : 'secondary'}>
@@ -239,28 +254,53 @@ export const UserManagement = () => {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {user.lastConnected || 'Never'}
-                    </TableCell>
-                    <TableCell>
-                      {user.ipAddress || '-'}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex space-x-1">
-                        {!user.hasIKEv2Config && (
+                      {user.configs ? (
+                        <div className="flex space-x-1">
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleGenerateIKEv2Config(user.username)}
-                            title="Generate IKEv2 config"
+                            onClick={() => handleDownloadConfig(`${user.username}.p12`)}
+                            title="Download .p12 (Windows/Linux)"
                           >
-                            <Download className="h-4 w-4" />
+                            .p12
                           </Button>
-                        )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDownloadConfig(`${user.username}.sswan`)}
+                            title="Download .sswan (Android)"
+                          >
+                            .sswan
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDownloadConfig(`${user.username}.mobileconfig`)}
+                            title="Download .mobileconfig (iOS/macOS)"
+                          >
+                            .mobileconfig
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">No configs</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex space-x-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleGenerateIKEv2Config(user.username)}
+                          title="Refresh IKEv2 configs"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                        </Button>
                         {user.username !== 'vpnuser' && user.username !== 'vpnclient' && (
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => handleDeleteUser(user.username)}
+                            title="Delete user"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -272,9 +312,14 @@ export const UserManagement = () => {
               </TableBody>
             </Table>
           </div>
-          {users.length === 0 && (
+          {users.length === 0 && !isRefreshing && (
             <div className="text-center py-8 text-muted-foreground">
-              No VPN users configured. Add your first user to get started.
+              No VPN users found. Add your first user to get started.
+            </div>
+          )}
+          {isRefreshing && (
+            <div className="text-center py-8 text-muted-foreground">
+              Loading users from server...
             </div>
           )}
         </CardContent>
@@ -304,11 +349,11 @@ export const UserManagement = () => {
                 <div className="space-y-1 text-sm">
                   <p><strong>Server Address:</strong> {serverConfig.ip}</p>
                   <p><strong>Authentication:</strong> Certificate-based</p>
-                  <p><strong>Config Files:</strong> Located in /root/</p>
+                  <p><strong>Config Files:</strong> Download from table above</p>
                   <ul className="list-disc list-inside text-xs mt-1 text-muted-foreground">
-                    <li>vpnclient.p12 (Windows & Linux)</li>
-                    <li>vpnclient.sswan (Android)</li>
-                    <li>vpnclient.mobileconfig (iOS & macOS)</li>
+                    <li>.p12 files for Windows & Linux</li>
+                    <li>.sswan files for Android</li>
+                    <li>.mobileconfig files for iOS & macOS</li>
                   </ul>
                 </div>
               </div>

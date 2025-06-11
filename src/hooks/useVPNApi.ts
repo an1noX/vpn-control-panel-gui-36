@@ -1,15 +1,21 @@
+
 import { useToast } from '@/hooks/use-toast';
 
-// API configuration - update this to point to your actual backend when ready
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+// API configuration - updated to match your backend server
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 export interface VPNUser {
   username: string;
-  password: string;
+  password?: string;
   status: 'active' | 'inactive';
   lastConnected?: string;
   ipAddress?: string;
   hasIKEv2Config?: boolean;
+  configs?: {
+    p12: string;
+    sswan: string;
+    mobileconfig: string;
+  };
 }
 
 export interface ServerStatus {
@@ -47,7 +53,7 @@ export interface IptablesRule {
 export const useVPNApi = () => {
   const { toast } = useToast();
 
-  // Mock data that matches your actual server
+  // Mock data for development - will be replaced by real API calls
   const mockUsers: VPNUser[] = [
     { 
       username: 'vpnuser', 
@@ -64,6 +70,37 @@ export const useVPNApi = () => {
       hasIKEv2Config: true
     }
   ];
+
+  // Get all users from your backend
+  const getUsers = async (): Promise<VPNUser[]> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to get users: ${response.statusText}`);
+      }
+      
+      const backendUsers = await response.json();
+      
+      // Transform backend response to match frontend VPNUser interface
+      const users: VPNUser[] = backendUsers.map((user: any) => ({
+        username: user.username,
+        status: 'active' as const, // Default status
+        hasIKEv2Config: true, // Users from backend have configs
+        configs: user.configs
+      }));
+      
+      return users;
+    } catch (error) {
+      console.error('Error getting users:', error);
+      toast({
+        title: "Error Getting Users",
+        description: "Failed to load users from server. Using mock data.",
+        variant: "destructive",
+      });
+      return mockUsers;
+    }
+  };
 
   const checkFileExists = async (filePath: string): Promise<FileCheckResult> => {
     try {
@@ -280,19 +317,9 @@ export const useVPNApi = () => {
     }
   };
 
+  // Updated to use your backend API endpoints
   const addUser = async (username: string, password: string): Promise<boolean> => {
     try {
-      // Check if addvpnuser.sh script exists
-      const scriptCheck = await checkFileExists('/opt/src/addvpnuser.sh');
-      if (!scriptCheck.exists) {
-        toast({
-          title: "Script Not Found",
-          description: "addvpnuser.sh script does not exist at /opt/src/addvpnuser.sh",
-          variant: "destructive",
-        });
-        return false;
-      }
-
       const response = await fetch(`${API_BASE_URL}/users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -300,8 +327,11 @@ export const useVPNApi = () => {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to add user: ${response.statusText}`);
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to add user: ${response.statusText}`);
       }
+      
+      const result = await response.json();
       
       toast({
         title: "User Added Successfully",
@@ -320,26 +350,19 @@ export const useVPNApi = () => {
     }
   };
 
+  // Updated to use your backend API endpoints
   const deleteUser = async (username: string): Promise<boolean> => {
     try {
-      // Check if delvpnuser.sh script exists
-      const scriptCheck = await checkFileExists('/opt/src/delvpnuser.sh');
-      if (!scriptCheck.exists) {
-        toast({
-          title: "Script Not Found",
-          description: "delvpnuser.sh script does not exist at /opt/src/delvpnuser.sh",
-          variant: "destructive",
-        });
-        return false;
-      }
-
       const response = await fetch(`${API_BASE_URL}/users/${username}`, {
         method: 'DELETE'
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to delete user: ${response.statusText}`);
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to delete user: ${response.statusText}`);
       }
+      
+      const result = await response.json();
       
       toast({
         title: "User Deleted Successfully",
@@ -358,32 +381,25 @@ export const useVPNApi = () => {
     }
   };
 
+  // Updated to use your IKEv2 reload endpoint
   const generateIKEv2Config = async (username: string): Promise<boolean> => {
     try {
-      // Check if ikev2.sh script exists
-      const scriptCheck = await checkFileExists('/opt/src/ikev2.sh');
-      if (!scriptCheck.exists) {
-        toast({
-          title: "Script Not Found",
-          description: "ikev2.sh script does not exist at /opt/src/ikev2.sh",
-          variant: "destructive",
-        });
-        return false;
-      }
-
-      const response = await fetch(`${API_BASE_URL}/ikev2/generate`, {
+      const response = await fetch(`${API_BASE_URL}/ikev2/reload`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username })
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to generate IKEv2 config: ${response.statusText}`);
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to generate IKEv2 config: ${response.statusText}`);
       }
+
+      const result = await response.json();
 
       toast({
         title: "IKEv2 Config Generated",
-        description: `Configuration files generated for ${username}`,
+        description: `Configuration files refreshed`,
       });
       
       return true;
@@ -454,25 +470,20 @@ export const useVPNApi = () => {
     }
   };
 
+  // Updated to use your configs endpoint
   const downloadConfigFile = async (filename: string): Promise<boolean> => {
     try {
-      // Check if the config file exists
-      const filePath = `/root/${filename}`;
-      const fileCheck = await checkFileExists(filePath);
-      
-      if (!fileCheck.exists) {
-        toast({
-          title: "File Not Found",
-          description: `Configuration file ${filename} does not exist at ${filePath}`,
-          variant: "destructive",
-        });
-        return false;
-      }
-
-      // Attempt to download the file
       const response = await fetch(`${API_BASE_URL}/configs/${filename}`);
       
       if (!response.ok) {
+        if (response.status === 404) {
+          toast({
+            title: "File Not Found",
+            description: `Configuration file ${filename} does not exist`,
+            variant: "destructive",
+          });
+          return false;
+        }
         throw new Error(`Failed to download file: ${response.statusText}`);
       }
 
@@ -528,6 +539,7 @@ export const useVPNApi = () => {
     addUser,
     deleteUser,
     generateIKEv2Config,
+    getUsers,
     
     // Server operations
     restartServices,
