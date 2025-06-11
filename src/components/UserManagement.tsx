@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { UserPlus, Trash2, Users, Eye, EyeOff, Download } from 'lucide-react';
+import { useVPNApi, VPNUser } from '@/hooks/useVPNApi';
 
 interface VPNUser {
   username: string;
@@ -26,6 +26,7 @@ export const UserManagement = () => {
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const { addUser, deleteUser, generateIKEv2Config, downloadConfigFile, mockUsers } = useVPNApi();
 
   // Server configuration
   const serverConfig = {
@@ -33,26 +34,10 @@ export const UserManagement = () => {
     ipsecPsk: 'TqNA5MFSpguyarTNJN4Y'
   };
 
-  // Load initial users including the default vpnuser
+  // Load initial users
   useEffect(() => {
-    const initialUsers: VPNUser[] = [
-      { 
-        username: 'vpnuser', 
-        password: '3ptEHfmJGk3ZaivU', 
-        status: 'active', 
-        lastConnected: '2024-01-15 14:30', 
-        ipAddress: '192.168.42.10',
-        hasIKEv2Config: false
-      },
-      { 
-        username: 'vpnclient', 
-        password: 'IKEv2 Certificate', 
-        status: 'inactive', 
-        hasIKEv2Config: true
-      }
-    ];
-    setUsers(initialUsers);
-  }, []);
+    setUsers(mockUsers);
+  }, [mockUsers]);
 
   // Validation logic for Debian/Ubuntu VPN setup
   const validateCredentials = (username: string, password: string) => {
@@ -95,16 +80,16 @@ export const UserManagement = () => {
     const userExists = users.some(user => user.username === newUser.username);
     if (userExists) {
       toast({
-        title: "User Update",
+        title: "User Exists",
         description: `User "${newUser.username}" already exists. Use /opt/src/addvpnuser.sh to update.`,
       });
       return;
     }
 
     setIsLoading(true);
-
-    // Mock API call - in reality this would call /opt/src/addvpnuser.sh
-    setTimeout(() => {
+    const success = await addUser(newUser.username, newUser.password);
+    
+    if (success) {
       const newVPNUser: VPNUser = {
         username: newUser.username,
         password: newUser.password,
@@ -112,15 +97,11 @@ export const UserManagement = () => {
         hasIKEv2Config: false,
       };
       setUsers(prev => [...prev, newVPNUser]);
-      toast({
-        title: "User Added",
-        description: `VPN user "${newUser.username}" has been created. Run /opt/src/addvpnuser.sh on the server to activate.`,
-      });
-
       setNewUser({ username: '', password: '' });
       setShowAddDialog(false);
-      setIsLoading(false);
-    }, 1000);
+    }
+    
+    setIsLoading(false);
   };
 
   const handleDeleteUser = async (username: string) => {
@@ -137,21 +118,14 @@ export const UserManagement = () => {
       return;
     }
 
-    // Mock API call - in reality this would call /opt/src/delvpnuser.sh
-    setTimeout(() => {
+    const success = await deleteUser(username);
+    if (success) {
       setUsers(prev => prev.filter(user => user.username !== username));
-      toast({
-        title: "User Deleted",
-        description: `VPN user "${username}" has been removed. Run /opt/src/delvpnuser.sh on the server to complete removal.`,
-      });
-    }, 500);
+    }
   };
 
-  const handleGenerateIKEv2Config = (username: string) => {
-    toast({
-      title: "IKEv2 Config Generation",
-      description: `Run /opt/src/ikev2.sh to generate IKEv2 configuration for "${username}". Config files will be saved to /root/`,
-    });
+  const handleGenerateIKEv2Config = async (username: string) => {
+    await generateIKEv2Config(username);
   };
 
   const togglePasswordVisibility = (username: string) => {
