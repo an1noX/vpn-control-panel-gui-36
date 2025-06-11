@@ -8,6 +8,8 @@ import { Settings, Shield, Network, Server, AlertTriangle, FileText, Copy } from
 import { useVPNApi } from '@/hooks/useVPNApi';
 import { useToast } from '@/hooks/use-toast';
 import { ConfigFileChecker } from '@/components/ConfigFileChecker';
+import { FileEditor } from '@/components/FileEditor';
+import { IptablesManager } from '@/components/IptablesManager';
 
 export const AdvancedSettings = () => {
   const { restartServices } = useVPNApi();
@@ -62,6 +64,10 @@ export const AdvancedSettings = () => {
           </div>
         </CardContent>
       </Card>
+
+      <FileEditor />
+
+      <IptablesManager />
 
       <ConfigFileChecker />
 

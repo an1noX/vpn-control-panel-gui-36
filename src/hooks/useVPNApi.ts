@@ -29,6 +29,21 @@ export interface FileCheckResult {
   error?: string;
 }
 
+export interface FileContent {
+  path: string;
+  content: string;
+  writable: boolean;
+  size?: number;
+  lastModified?: string;
+}
+
+export interface IptablesRule {
+  id: string;
+  chain: string;
+  rule: string;
+  enabled: boolean;
+}
+
 export const useVPNApi = () => {
   const { toast } = useToast();
 
@@ -71,6 +86,197 @@ export const useVPNApi = () => {
         path: filePath,
         error: error instanceof Error ? error.message : 'Unknown error'
       };
+    }
+  };
+
+  // File CRUD Operations
+  const readFile = async (filePath: string): Promise<FileContent | null> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/files/read`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: filePath })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to read file: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error(`Error reading file ${filePath}:`, error);
+      toast({
+        title: "File Read Error",
+        description: error instanceof Error ? error.message : `Failed to read ${filePath}`,
+        variant: "destructive",
+      });
+      return null;
+    }
+  };
+
+  const writeFile = async (filePath: string, content: string): Promise<boolean> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/files/write`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: filePath, content })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to write file: ${response.statusText}`);
+      }
+
+      toast({
+        title: "File Saved",
+        description: `Successfully saved ${filePath}`,
+      });
+
+      return true;
+    } catch (error) {
+      console.error(`Error writing file ${filePath}:`, error);
+      toast({
+        title: "File Write Error",
+        description: error instanceof Error ? error.message : `Failed to write ${filePath}`,
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
+  const createFile = async (filePath: string, content: string = ''): Promise<boolean> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/files/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: filePath, content })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to create file: ${response.statusText}`);
+      }
+
+      toast({
+        title: "File Created",
+        description: `Successfully created ${filePath}`,
+      });
+
+      return true;
+    } catch (error) {
+      console.error(`Error creating file ${filePath}:`, error);
+      toast({
+        title: "File Creation Error",
+        description: error instanceof Error ? error.message : `Failed to create ${filePath}`,
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
+  const deleteFile = async (filePath: string): Promise<boolean> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/files/delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: filePath })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to delete file: ${response.statusText}`);
+      }
+
+      toast({
+        title: "File Deleted",
+        description: `Successfully deleted ${filePath}`,
+      });
+
+      return true;
+    } catch (error) {
+      console.error(`Error deleting file ${filePath}:`, error);
+      toast({
+        title: "File Deletion Error",
+        description: error instanceof Error ? error.message : `Failed to delete ${filePath}`,
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
+  // IPTables Operations
+  const getIptablesRules = async (): Promise<IptablesRule[]> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/iptables/list`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to get iptables rules: ${response.statusText}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error getting iptables rules:', error);
+      toast({
+        title: "IPTables Error",
+        description: "Failed to retrieve iptables rules",
+        variant: "destructive",
+      });
+      return [];
+    }
+  };
+
+  const addIptablesRule = async (chain: string, rule: string): Promise<boolean> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/iptables/add`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chain, rule })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to add iptables rule: ${response.statusText}`);
+      }
+
+      toast({
+        title: "IPTables Rule Added",
+        description: `Successfully added rule to ${chain} chain`,
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error adding iptables rule:', error);
+      toast({
+        title: "IPTables Error",
+        description: error instanceof Error ? error.message : "Failed to add iptables rule",
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
+  const removeIptablesRule = async (chain: string, ruleNumber: number): Promise<boolean> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/iptables/remove`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chain, ruleNumber })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to remove iptables rule: ${response.statusText}`);
+      }
+
+      toast({
+        title: "IPTables Rule Removed",
+        description: `Successfully removed rule from ${chain} chain`,
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error removing iptables rule:', error);
+      toast({
+        title: "IPTables Error",
+        description: error instanceof Error ? error.message : "Failed to remove iptables rule",
+        variant: "destructive",
+      });
+      return false;
     }
   };
 
@@ -318,14 +524,30 @@ export const useVPNApi = () => {
   };
 
   return {
+    // User management
     addUser,
     deleteUser,
     generateIKEv2Config,
+    
+    // Server operations
     restartServices,
     getServerStatus,
     downloadConfigFile,
+    
+    // File operations (CRUD)
     checkFileExists,
+    readFile,
+    writeFile,
+    createFile,
+    deleteFile,
     checkConfigurationFiles,
+    
+    // IPTables operations
+    getIptablesRules,
+    addIptablesRule,
+    removeIptablesRule,
+    
+    // Mock data
     mockUsers
   };
 };
