@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -178,7 +177,7 @@ export const ServerConfigCard = ({ serverConfig }: ServerConfigCardProps) => {
                         <div className="flex items-center space-x-2">
                           <div className="text-xs font-mono">{file.name}</div>
                           {fileStatuses[file.name] === false && (
-                            <AlertTriangle className="h-3 w-3 text-orange-500" title="File not found" />
+                            <AlertTriangle className="h-3 w-3 text-orange-500" />
                           )}
                           <div className="text-xs text-muted-foreground">{file.label}</div>
                         </div>
@@ -186,10 +185,6 @@ export const ServerConfigCard = ({ serverConfig }: ServerConfigCardProps) => {
                           size="sm"
                           variant="ghost"
                           onClick={() => handleDownload(file.name)}
-                          title={fileStatuses[file.name] === false ? 
-                            "File not found on server" : 
-                            `Download ${file.description}`
-                          }
                           disabled={fileStatuses[file.name] === false}
                         >
                           <Download className="h-3 w-3" />

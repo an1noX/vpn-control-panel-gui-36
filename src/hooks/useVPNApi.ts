@@ -1,8 +1,7 @@
-
 import { useToast } from '@/hooks/use-toast';
 
 // API configuration - update this to point to your actual backend when ready
-const API_BASE_URL = process.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 export interface VPNUser {
   username: string;
